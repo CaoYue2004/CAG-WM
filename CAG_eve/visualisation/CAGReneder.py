@@ -30,9 +30,9 @@ def _diff_tensors(src_module, dst_module):
     src = named_params_and_buffers(src_module)
     dst = named_params_and_buffers(dst_module)
 
-    missing = []      # 鍦?dst 閲屾湁銆佷絾 src 閲屾病鏈夌殑鍚嶅瓧 -> 瑙﹀彂浣犵幇鍦ㄧ殑鏂█
-    mismatched = []   # 鍚嶅瓧閮芥湁锛屼絾 shape 涓嶅悓
-    extra = []        # 鍦?src 閲屾湁銆佷絾 dst 娌℃湁锛堜竴鑸笉鑷村懡锛?
+    missing = []      
+    mismatched = []   
+    extra = []        
 
     for n, t in dst.items():
         if n not in src:
@@ -64,40 +64,30 @@ def _diff_tensors(src_module, dst_module):
 
 def camera_mat(a, b, r):
     r = float(r) / 157.7
-    theta = np.deg2rad(float(b) - 90)  # 极角
-    phi = np.deg2rad(float(a))  # 极坐标
+    theta = np.deg2rad(float(b) - 90)  
+    phi = np.deg2rad(float(a))  
 
     x_camera = r * np.sin(theta) * np.cos(phi)
     y_camera = r * np.sin(theta) * np.sin(phi)
     z_camera = r * np.cos(theta)
 
-    # 相机坐标系的三个轴在世界坐标系中的方向
     z_xc, z_yc, z_zc = -x_camera, -y_camera, -z_camera
-    ###########################
-    # x轴 平行yox平面
     x_xc, x_yc, x_zc = -1 / (x_camera + 10e-6), 1 / (y_camera + 10e-6), 0
     y_xc, y_yc, y_zc = ((z_yc * x_zc - x_yc * z_zc), -(z_xc * x_zc - z_zc * x_xc), (z_xc * x_yc - z_yc * x_xc))
-    ##################################
-    #
     if y_zc > 0:
         x_xc, x_yc, x_zc = -x_xc, -x_yc, -x_zc
         y_xc, y_yc, y_zc = -y_xc, -y_yc, -y_zc
 
-    # 计算方向矩阵 D
     D = np.array([[x_xc, y_xc, z_xc],
                   [x_yc, y_yc, z_yc],
                   [x_zc, y_zc, z_zc]])
 
-    # 单位化 D 的列向量
     D_prime = D / (np.linalg.norm(D, axis=0) + 10e-6)
 
-    # 计算旋转矩阵 R
     R = D_prime
-    # 计算平移矩阵 T
     T = np.eye(4)
     T[:3, :3] = R
     T[:3, 3] = [x_camera, y_camera, z_camera]
-    # print(f'T_inv={np.linalg.inv(T)}')
     return T, [x_camera, y_camera, z_camera, 1]
 
 
@@ -107,10 +97,6 @@ def grid_to_world_batch(grid_xyz: np.ndarray,
                         grid_size=512,
                         center=True,
                         clip=True) -> np.ndarray:
-    """
-    grid_xyz: (N,3) or (3,) 体素索引坐标，顺序为 (x, y, z)
-    return:  (N,3) or (3,) 世界坐标，顺序为 (x, y, z)
-    """
     grid_xyz = np.asarray(grid_xyz, dtype=np.float32)
     bbox_min = np.asarray(bbox_min, dtype=np.float32).reshape(1, 3) if np.ndim(bbox_min) == 1 else np.asarray(bbox_min, dtype=np.float32)
     bbox_max = np.asarray(bbox_max, dtype=np.float32).reshape(1, 3) if np.ndim(bbox_max) == 1 else np.asarray(bbox_max, dtype=np.float32)
@@ -123,7 +109,7 @@ def grid_to_world_batch(grid_xyz: np.ndarray,
         grid_xyz = np.clip(grid_xyz, 0.0, float(grid_size - 1))
 
     if center:
-        grid_xyz = grid_xyz + 0.5  # 体素中心
+        grid_xyz = grid_xyz + 0.5  
 
     norm = grid_xyz / float(grid_size - 1)
     world = bbox_min + norm * (bbox_max - bbox_min)
@@ -146,7 +132,6 @@ class CAGRender(Visualisation):
         angles_csv: Optional[str] = None,
         device: str = "cuda:0",
     ) -> None:
-        # ---- 配置 ----
         self.network_pkl = network_pkl
         self.intervention = intervention
         self.ppa = float(ppa)
@@ -174,13 +159,12 @@ class CAGRender(Visualisation):
         self._opengl_glu = None
         self._pygame = None
 
-        # interim target
         self.interim_target = interim_target or InterimTargetDummy()
         self.interim_targets = []
         simulation.interim_target_size = self.interim_target.threshold
 
         self.angles_csv = angles_csv
-        self.frame_idx = 0  # 当前帧计数
+        self.frame_idx = 0  
 
         self._angles = None
         if self.angles_csv is not None:
@@ -197,13 +181,11 @@ class CAGRender(Visualisation):
         simulation.target_size = self.intervention.target.threshold
         simulation.interim_target_size = self.interim_target.threshold
 
-        # ---- 运行时状态（render/reset 会用到，必须提前有）----
         self.episode_nr = 0
-        self.reached = False                 # 避免 render() 访问时不存在
-        self._traj_2d = []                   # 你要画轨迹就用
-        self.background = None               # reset 后会变成 (H,W,3) uint8
+        self.reached = False                 
+        self._traj_2d = []                   
+        self.background = None              
 
-        # ---- 模型相关缓存（建议缓存，避免每次 reset 重新 load）----
         self.device = torch.device(device)
         self.G = None
 
@@ -215,33 +197,23 @@ class CAGRender(Visualisation):
             it_to_remove = self.interim_targets.pop(0)
             simulation.remove_interim_target(it_to_remove)
 
-        # ============================
-        # 左：EG3D 造影
-        # ============================
         focal_length = 7.191
         intrinsics = torch.tensor([[focal_length, 0, 0.5], [0, focal_length, 0.5], [0, 0, 1]], device=self.device)
         z = torch.from_numpy(np.random.RandomState(self.seed).randn(1, self.G.z_dim)).to(self.device)
 
-        # 后面删掉
-        # self.ppa = -30
-        # self.psa = 20
         cam2world_pose = LookAtPoseSampler.sampleDSA(self.ppa, self.psa, 829.4015277, device=self.device)
         conditioning_cam2world_pose = LookAtPoseSampler.sampleDSA(self.ppa, self.psa, 829.4015277, device=self.device)
 
-        # 计算 camera_params 和 conditioning_params
         camera_params = torch.cat([cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
         conditioning_params = torch.cat([conditioning_cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
 
-        # 生成图像
         ws = self.G.mapping(z, conditioning_params, truncation_psi=0.7, truncation_cutoff=14)
         img_dict, all_depth, all_density = self.G.synthesis(ws, camera_params)
         img = img_dict['image'][0]
 
-        # 图像后处理
         img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
         img_np = np.array(img.cpu().permute(1, 2, 0))
 
-        # 确保图像为3通道
         img_np = img_np.astype(np.uint8)
         if len(img_np.shape) == 2:
             img_np = np.expand_dims(img_np, axis=-1)
@@ -250,7 +222,6 @@ class CAGRender(Visualisation):
 
         angio = np.ascontiguousarray(img_np)
 
-        # ---- 画导丝 ----
         img_left = angio.copy()
         pos = self.intervention.simulation.dof_positions
         pos_world = grid_to_world_batch(pos, bbox_min=-0.5, bbox_max=0.5, grid_size=512, center=True, clip=True)
@@ -272,17 +243,14 @@ class CAGRender(Visualisation):
 
             if 0 <= u < 512 and 0 <= v < 512:
                 uv = (u, v)
-                if uv != prev_uv:  # 相邻去重
+                if uv != prev_uv:  
                     pixel_points.append(uv)
                     prev_uv = uv
 
-        # 绘制导丝连线,模拟金属导丝的颜色(银灰色/浅灰色)
         if len(pixel_points) >= 2:
             pts = np.array(pixel_points, dtype=np.int32)
-            # 使用银灰色 (BGR格式: 192, 192, 192) 或更亮的浅灰 (220, 220, 220)
             cv2.polylines(img_left, [pts], False, (0, 255, 0), 2)
 
-        # ---- 画目标点 ----
         target = self.target
         target_world = grid_to_world_batch(target, bbox_min=-0.5, bbox_max=0.5, grid_size=512, center=True, clip=True)
         t_x, t_y, t_z = target_world.tolist()
@@ -295,9 +263,6 @@ class CAGRender(Visualisation):
         v_t = int(round(t_pix[1]))
         cv2.circle(img_left, (u_t, v_t), 2, (255, 0, 0), -1)
 
-        # ============================
-        # 右：SOFA OpenGL 渲染并读回
-        # ============================
         self._pygame.event.get()
         simulation = self.intervention.simulation
         if self.interim_target.reached:
@@ -328,8 +293,8 @@ class CAGRender(Visualisation):
         # camera_mvm = camera.getOpenGLModelViewMatrix()
         look_at = [256, 256, 256]
         distance = 829.4015277 / 157.7 * 512
-        theta = np.deg2rad(float(self.psa) - 90)  # 极角
-        phi = np.deg2rad(float(self.ppa))  # 极坐标
+        theta = np.deg2rad(float(self.psa) - 90)  
+        phi = np.deg2rad(float(self.ppa))  
         x_camera = distance * np.sin(theta) * np.cos(phi)
         y_camera = distance * np.sin(theta) * np.sin(phi)
         z_camera = distance * np.cos(theta)
@@ -353,18 +318,6 @@ class CAGRender(Visualisation):
 
         camera_mvm = M.T.reshape(-1)
 
-        print(f'look_at={look_at}, position={position}')
-
-        # M, camera_mvm = gluLookAt_modelview(position, look_at, up)
-
-        '''camera_mvm = [
-            4.999999999984274e-01, 0.000000000000000e+00, -8.660254037853466e-01, 0.000000000000000e+00,
-            -0.000000000000000e+00, 1.000000000000000e+00, -0.000000000000000e+00, 0.000000000000000e+00,
-            8.660254037853466e-01, 0.000000000000000e+00, 4.999999999984274e-01, 0.000000000000000e+00,
-            -3.497025033686461e+02, -2.560000000000001e+02, -2.599091296139019e+03, 1.000000000000000e+00
-        ]'''
-        print(f'camera_mvm={camera_mvm}')
-
         gl.glMultMatrixd(camera_mvm)
         self._sofa_gl.draw(simulation.root)
         gl = self._opengl_gl
@@ -377,17 +330,12 @@ class CAGRender(Visualisation):
         if image_array.shape:
             sofa_img = image_array.reshape(height, width, 3)
             # OpenGL → image coords
-            sofa_img = np.flipud(sofa_img)  # 修正原点（左下 → 左上）
-            sofa_img = np.rot90(sofa_img, k=1)  # 修正轴方向（OpenGL → 图像）
+            sofa_img = np.flipud(sofa_img)  
+            sofa_img = np.rot90(sofa_img, k=1)  
         else:
             sofa_img = np.zeros((height, width, 3))
         self._pygame.display.flip()
-
-        # ============================
-        # 裁剪拼接：左 256(造影) + 右 256(sofa)
-        # 输出 512x512
-        # ============================
-        # 统一两张图到 512x512（防止 sofa viewport 不是 512）
+        
         img_left_512 = cv2.resize(img_left, (512, 512), interpolation=cv2.INTER_AREA)
         sofa_512 = cv2.resize(sofa_img, (512, 512), interpolation=cv2.INTER_AREA)
 
@@ -397,8 +345,8 @@ class CAGRender(Visualisation):
     def reset(self, episode_nr: int = 0) -> None:
         self.frame_idx = 0
         self.episode_nr = episode_nr
-        self.reached = False  # 如果你的可视化里会读这些状态
-        self._traj_2d = []  # 可选：导丝轨迹缓存（要画轨迹就需要）
+        self.reached = False  
+        self._traj_2d = []  
 
         fluoroscopy = self.intervention.fluoroscopy
         self.target = self.intervention.target.coordinates3d
@@ -407,9 +355,6 @@ class CAGRender(Visualisation):
             fluoroscopy.image_rot_zx,
             fluoroscopy.image_center
         )
-        # print(f'target={self.target}')
-
-        # ---- 造影渲染 ----
         print("[CAGRender] before open_url", flush=True)
         with dnnlib.util.open_url(self.network_pkl) as f:
             self.G = legacy.load_network_pkl(f)['G_ema'].to(self.device)  # type: ignore
@@ -431,20 +376,16 @@ class CAGRender(Visualisation):
         cam2world_pose = LookAtPoseSampler.sampleDSA(self.ppa, self.psa, 829.4015277, device=self.device)
         conditioning_cam2world_pose = LookAtPoseSampler.sampleDSA(self.ppa, self.psa, 829.4015277, device=self.device)
 
-        # 计算 camera_params 和 conditioning_params
         camera_params = torch.cat([cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
         conditioning_params = torch.cat([conditioning_cam2world_pose.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
 
-        # 生成图像
         ws = self.G.mapping(z, conditioning_params, truncation_psi=0.7, truncation_cutoff=14)
         img_dict, all_depth, all_density = self.G.synthesis(ws, camera_params)
         img = img_dict['image'][0]
 
-        # 图像后处理
         img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
         img_np = np.array(img.cpu().permute(1, 2, 0))
 
-        # 确保图像为3通道
         img_np = img_np.astype(np.uint8)
         if len(img_np.shape) == 2:
             img_np = np.expand_dims(img_np, axis=-1)
@@ -453,7 +394,6 @@ class CAGRender(Visualisation):
 
         self.background = np.ascontiguousarray(img_np)
 
-        # ---- sofa渲染 ----
         simulation = self.intervention.simulation
         # pylint: disable=no-member
         self._sofa = self._sofa or importlib.import_module("Sofa")
@@ -574,11 +514,10 @@ class CAGRender(Visualisation):
             return np.zeros((h, w, 3), dtype=np.uint8)
 
         img = arr.reshape(h, w, 3)
-        img = np.flipud(img)  # OpenGL 原点在左下
+        img = np.flipud(img)  
         return img.copy()
 
     def _fov_y_from_f(self, f_norm: float, H: int) -> float:
-        """EG3D 的 f_norm（配 cx=cy=0.5）近似换成 OpenGL 的垂直 fov（角度制）"""
         fy_px = float(f_norm) * float(H)
         fov_y = 2.0 * np.arctan((H / 2.0) / (fy_px + 1e-9))
         return float(fov_y * 180.0 / np.pi)
@@ -588,11 +527,6 @@ class CAGRender(Visualisation):
                                       dsp: float, f_norm: float,
                                       z_near: float, z_far: float,
                                       fix_axes: bool = True) -> None:
-        """
-        路 A：用你的外参/内参设置 OpenGL:
-        - Projection: gluPerspective(fov_y, aspect, near, far)
-        - ModelView:  world2cam（必要时加轴翻转）
-        """
         # 1) Projection
         fov_y = self._fov_y_from_f(f_norm, height)
         gl.glMatrixMode(gl.GL_PROJECTION)
@@ -604,27 +538,17 @@ class CAGRender(Visualisation):
         T, _ = camera_mat(primary_angle, secondary_angle, dsp)
         world2cam = np.linalg.inv(T)
 
-        # OpenGL 经典相机是朝 -Z，看起来会和你 +Z 光轴定义不一致
-        # 通常需要翻转一下相机坐标轴：Y/Z 翻（保持右手系）
         if fix_axes:
-            C = np.diag([1.0, -1.0, -1.0, 1.0])  # 很常用的 CV(+Z) -> GL(-Z)
+            C = np.diag([1.0, -1.0, -1.0, 1.0])  
             world2cam = C @ world2cam
 
         gl.glMatrixMode(gl.GL_MODELVIEW)
         gl.glLoadIdentity()
-
-        # OpenGL fixed pipeline 通常吃列主序；numpy 是行主序
-        # 所以一般要转置再喂
         gl.glMultMatrixd(world2cam.T.astype(np.float64))
 
     def _crop_half_and_concat(self, angio: np.ndarray, sofa: np.ndarray,
                               out_h: int = 512, half_w: int = 256) -> np.ndarray:
-        """
-        输出: (out_h, 2*half_w, 3) = (512, 512, 3)
-        左半边：造影裁一半；右半边：SOFA裁一半
-        """
 
-        # 1) 保证三通道
         if angio.ndim == 2:
             angio = np.repeat(angio[..., None], 3, axis=2)
         if sofa.ndim == 2:
@@ -634,15 +558,12 @@ class CAGRender(Visualisation):
         if sofa.shape[2] == 1:
             sofa = np.repeat(sofa, 3, axis=2)
 
-        # 2) 统一到 512x512（宽高都变成 out_h）
         angio_512 = cv2.resize(angio, (out_h, out_h), interpolation=cv2.INTER_AREA)
         sofa_512 = cv2.resize(sofa, (out_h, out_h), interpolation=cv2.INTER_AREA)
 
-        # 3) 裁半边：造影取左半，SOFA取右半（你也可以反过来）
         angio_half = angio_512[:, :half_w, :]  # (512, 256, 3)
         sofa_half = sofa_512[:, -half_w:, :]  # (512, 256, 3)
 
-        # 4) 拼接
         out = np.concatenate([angio_half, sofa_half], axis=1)  # (512, 512, 3)
         return out
 
@@ -737,35 +658,26 @@ def _normalize(v, eps=1e-12):
     return v / (n + eps)
 
 def gluLookAt_modelview(eye, center, up):
-    """
-    纯 OpenGL gluLookAt 等价实现（world -> camera 的 ModelView/ViewMatrix）
-    返回:
-      M: 4x4 矩阵（numpy, row-major 存储）
-      mvm_16: 给 glMultMatrixd 用的 16 个数（column-major 展开）
-    """
     eye = np.asarray(eye, dtype=np.float64)
     center = np.asarray(center, dtype=np.float64)
     up = np.asarray(up, dtype=np.float64)
 
-    # 1) forward / right / trueUp
     f = _normalize(center - eye)  # forward
     s = _normalize(np.cross(f, up))  # right
     u = np.cross(s, f)  # true up
 
-    # 2) 组装矩阵（OpenGL 看向 -Z）
     M = np.eye(4, dtype=np.float64)
     M[0, 0:3] = s
     M[1, 0:3] = u
     M[2, 0:3] = -f
 
-    # 3) 平移项：-R * eye
     M[0, 3] = -np.dot(s, eye)
     M[1, 3] = -np.dot(u, eye)
-    M[2, 3] = np.dot(f, eye)  # 因为第三行是 -f
+    M[2, 3] = np.dot(f, eye)  
 
-    # 4) OpenGL 需要 column-major 的 16 个数
     mvm_16 = M.T.reshape(-1).tolist()
     return M, mvm_16
+
 
 
 
