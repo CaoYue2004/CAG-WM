@@ -9,20 +9,13 @@ from ..interimtarget import InterimTarget, InterimTargetDummy
 from ..util.coordtransform import tracking3d_to_vessel_cs
 
 
-# ----------------------------------------------------------------------
-# SofaPygame：使用 pygame + OpenGL 渲染 SOFA 场景，并返回渲染图像（numpy）
-# 同时支持相机平移/缩放/旋转（模拟 C-arm 视角：LAO/RAO + CRA/CAU）
-# ----------------------------------------------------------------------
 class SofaPygame(Visualisation):
-    # ------------------------------------------------------------------
-    # 构造函数：绑定 intervention，并配置仿真可视化参数
-    # ------------------------------------------------------------------
     def __init__(
         self,
-        intervention: Intervention,     # 介入任务对象（提供 simulation、fluoroscopy、target、vessel_tree 等）
-        interim_target: Optional[InterimTarget] = None,     # 中间目标对象（可选）；若未提供则使用 Dummy
-        display_size: Tuple[float, float] = (600, 860),     # pygame 窗口尺寸
-        color: Tuple[float, float, float, float] = (0, 0, 0, 0),    # OpenGL 清屏颜色（RGBA）
+        intervention: Intervention,     
+        interim_target: Optional[InterimTarget] = None,     
+        display_size: Tuple[float, float] = (600, 860),     
+        color: Tuple[float, float, float, float] = (0, 0, 0, 0),    
     ) -> None:
         self.intervention = intervention
         self.interim_target = interim_target or InterimTargetDummy()
@@ -49,11 +42,7 @@ class SofaPygame(Visualisation):
 
         self.interim_targets = []
 
-    # ------------------------------------------------------------------
-    # 渲染一帧：推进视觉更新、OpenGL 渲染、读取像素并返回 numpy 图像
-    # ------------------------------------------------------------------
     def render(self) -> None:
-        print(111)
         self._pygame.event.get()
         simulation = self.intervention.simulation
         if self.interim_target.reached:
@@ -98,9 +87,6 @@ class SofaPygame(Visualisation):
         self._pygame.display.flip()
         return np.copy(image)
 
-    # ------------------------------------------------------------------
-    # reset：初始化 pygame + OpenGL + SOFA 可视化，并设置相机/目标/中间目标
-    # ------------------------------------------------------------------
     def reset(self, episode_nr: int = 0) -> None:
         simulation = self.intervention.simulation
         # pylint: disable=no-member
