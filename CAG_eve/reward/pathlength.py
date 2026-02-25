@@ -8,7 +8,6 @@ class PathLength(Reward):
         self.factor = factor
         self.reward = None
 
-    # step：每个环境 step 调用一次，用当前路径长度计算奖励
     def step(self) -> None:
         path_length = self.pathfinder.path_length
         self.reward = path_length * self.factor
