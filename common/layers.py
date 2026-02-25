@@ -19,7 +19,6 @@ class _ParamView(dict):
 
 
 def _encode_key(k: str) -> str:
-    # '.' 不能出现在 buffer 名里，用 '__DOT__' 编码
     return k.replace(".", "__DOT__")
 
 
@@ -41,15 +40,12 @@ class Ensemble(nn.Module):
 
         params, buffers = stack_module_state(modules)
 
-        # 保存原 key 列表
         self._param_keys = list(params.keys())
         self._buffer_keys = list(buffers.keys())
 
-        # 建立 “原key -> 编码key” 映射
         self._pmap = {k: _encode_key(k) for k in self._param_keys}
         self._bmap = {k: _encode_key(k) for k in self._buffer_keys}
 
-        # 注册为 buffer（名字不能含 '.'）
         for k, v in params.items():
             self.register_buffer(f"_p__{self._pmap[k]}", v, persistent=False)
         for k, v in buffers.items():
@@ -71,7 +67,6 @@ class Ensemble(nn.Module):
 
     @staticmethod
     def _as_pytree_dict(maybe_view):
-        # _ParamView(dict 子类) -> 纯 dict，保证 vmap 识别为 pytree
         if isinstance(maybe_view, dict) and type(maybe_view) is not dict:
             return dict(maybe_view)
         return maybe_view
@@ -219,7 +214,7 @@ def enc(cfg, out={}):
 			out[k] = mlp(cfg.obs_shape[k][0] + cfg.task_dim, max(cfg.num_enc_layers-1, 1)*[cfg.enc_dim], cfg.latent_dim, act=SimNorm(cfg))
 		elif k == 'rgb':
 			out[k] = conv(cfg.obs_shape[k], cfg.num_channels, act=SimNorm(cfg))
-		elif k == 'dict_state':  # 👈 新增
+		elif k == 'dict_state':  
 			out[k] = DictObsEncoderTCN(
 				d=cfg.enc_dim,
 				d_out=cfg.enc_dim,
