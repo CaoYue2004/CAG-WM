@@ -1,0 +1,286 @@
+from math import cos, sin
+from typing import Optional, Tuple
+import importlib
+import numpy as np
+
+from .visualisation import Visualisation
+from ..intervention import Intervention
+from ..interimtarget import InterimTarget, InterimTargetDummy
+from ..util.coordtransform import tracking3d_to_vessel_cs
+
+
+# ----------------------------------------------------------------------
+# SofaPygame：使用 pygame + OpenGL 渲染 SOFA 场景，并返回渲染图像（numpy）
+# 同时支持相机平移/缩放/旋转（模拟 C-arm 视角：LAO/RAO + CRA/CAU）
+# ----------------------------------------------------------------------
+class SofaPygame(Visualisation):
+    # ------------------------------------------------------------------
+    # 构造函数：绑定 intervention，并配置仿真可视化参数
+    # ------------------------------------------------------------------
+    def __init__(
+        self,
+        intervention: Intervention,     # 介入任务对象（提供 simulation、fluoroscopy、target、vessel_tree 等）
+        interim_target: Optional[InterimTarget] = None,     # 中间目标对象（可选）；若未提供则使用 Dummy
+        display_size: Tuple[float, float] = (600, 860),     # pygame 窗口尺寸
+        color: Tuple[float, float, float, float] = (0, 0, 0, 0),    # OpenGL 清屏颜色（RGBA）
+    ) -> None:
+        self.intervention = intervention
+        self.interim_target = interim_target or InterimTargetDummy()
+        self.display_size = display_size
+        self.color = color
+        simulation = self.intervention.simulation
+        simulation.init_visual_nodes = True
+        simulation.display_size = display_size
+        simulation.target_size = self.intervention.target.threshold
+        simulation.interim_target_size = self.interim_target.threshold
+
+        self.initial_orientation = None
+        self._initialized = False
+        self._theta_x = intervention.fluoroscopy.image_rot_zx[1] * np.pi / 180
+        self._theta_z = intervention.fluoroscopy.image_rot_zx[0] * np.pi / 180
+        self._initial_direction = None
+        self._initial_look_at = None
+        self._distance = None
+        self._sofa = None
+        self._sofa_gl = None
+        self._opengl_gl = None
+        self._opengl_glu = None
+        self._pygame = None
+
+        self.interim_targets = []
+
+    # ------------------------------------------------------------------
+    # 渲染一帧：推进视觉更新、OpenGL 渲染、读取像素并返回 numpy 图像
+    # ------------------------------------------------------------------
+    def render(self) -> None:
+        print(111)
+        self._pygame.event.get()
+        simulation = self.intervention.simulation
+        if self.interim_target.reached:
+            it_to_remove = self.interim_targets.pop(0)
+            simulation.remove_interim_target(it_to_remove)
+
+        self._sofa.Simulation.updateVisual(simulation.root)
+        gl = self._opengl_gl
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        gl.glClearColor(*self.color)
+        gl.glEnable(gl.GL_LIGHTING)
+        gl.glEnable(gl.GL_DEPTH_TEST)
+        gl.glMatrixMode(gl.GL_PROJECTION)
+        gl.glLoadIdentity()
+        camera = simulation.camera
+        width = camera.widthViewport.value
+        height = camera.heightViewport.value
+        self._opengl_glu.gluPerspective(
+            camera.fieldOfView.value,
+            (width / height),
+            camera.zNear.value,
+            camera.zFar.value,
+        )
+        gl.glMatrixMode(gl.GL_MODELVIEW)
+        gl.glLoadIdentity()
+
+        camera_mvm = camera.getOpenGLModelViewMatrix()
+        gl.glMultMatrixd(camera_mvm)
+        self._sofa_gl.draw(simulation.root)
+        gl = self._opengl_gl
+        height = camera.heightViewport.value
+        width = camera.widthViewport.value
+
+        buffer = gl.glReadPixels(0, 0, width, height, gl.GL_RGB, gl.GL_UNSIGNED_BYTE)
+        image_array = np.fromstring(buffer, np.uint8)
+
+        if image_array.shape:
+            image = image_array.reshape(height, width, 3)
+            image = np.flipud(image)[:, :, :3]
+        else:
+            image = np.zeros((height, width, 3))
+        self._pygame.display.flip()
+        return np.copy(image)
+
+    # ------------------------------------------------------------------
+    # reset：初始化 pygame + OpenGL + SOFA 可视化，并设置相机/目标/中间目标
+    # ------------------------------------------------------------------
+    def reset(self, episode_nr: int = 0) -> None:
+        simulation = self.intervention.simulation
+        # pylint: disable=no-member
+        self._sofa = self._sofa or importlib.import_module("Sofa")
+        self._sofa_gl = self._sofa_gl or importlib.import_module("Sofa.SofaGL")
+        self._opengl_gl = self._opengl_gl or importlib.import_module("OpenGL.GL")
+        self._opengl_glu = self._opengl_glu or importlib.import_module("OpenGL.GLU")
+        self._pygame = self._pygame or importlib.import_module("pygame")
+        if not self._initialized:
+            self._pygame.display.init()
+            flags = (
+                self._pygame.DOUBLEBUF | self._pygame.OPENGL | self._pygame.RESIZABLE
+            )
+            self._pygame.display.set_mode(self.display_size, flags)
+            self._initialized = True
+
+        gl = self._opengl_gl
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        gl.glClearColor(*self.color)
+        gl.glEnable(gl.GL_LIGHTING)
+        gl.glEnable(gl.GL_DEPTH_TEST)
+        gl.glDepthFunc(gl.GL_LESS)
+        self._sofa.SofaGL.glewInit()
+        self._sofa.Simulation.initVisual(simulation.root)
+        self._sofa.Simulation.initTextures(simulation.root)
+        gl.glMatrixMode(gl.GL_PROJECTION)
+        gl.glLoadIdentity()
+        camera = simulation.camera
+        width = camera.widthViewport.value
+        height = camera.heightViewport.value
+        self._opengl_glu.gluPerspective(
+            camera.fieldOfView.value,
+            (width / height),
+            camera.zNear.value,
+            camera.zFar.value,
+        )
+        gl.glMatrixMode(gl.GL_MODELVIEW)
+        gl.glLoadIdentity()
+        if self.initial_orientation is not None:
+            self._theta_x = 0.0
+            self._theta_z = 0.0
+            self.rotate(0, 0)
+        self.initial_orientation = np.array(
+            [
+                camera.orientation[3],
+                camera.orientation[0],
+                camera.orientation[1],
+                camera.orientation[2],
+            ]
+        )
+        position = camera.position
+        look_at = camera.lookAt
+        self._initial_direction = position - look_at
+        self._distance = np.linalg.norm(self._initial_direction)
+        self._initial_direction = self._initial_direction / self._distance
+        fluoroscopy = self.intervention.fluoroscopy
+
+        vessel_tree = self.intervention.vessel_tree
+        vessel_low = vessel_tree.coordinate_space.low
+        vessel_high = vessel_tree.coordinate_space.high
+        vessel_center = (vessel_high + vessel_low) / 2
+
+        if fluoroscopy.image_center != [0, 0, 0]:
+            look_at[0] = fluoroscopy.image_center[0]
+            look_at[1] = fluoroscopy.image_center[1]
+            look_at[2] = fluoroscopy.image_center[2]
+        else:
+            look_at[0] = vessel_center[0]
+            look_at[1] = vessel_center[1]
+            look_at[2] = vessel_center[2]
+
+        self._initial_look_at = look_at
+        self._theta_x = fluoroscopy.image_rot_zx[1] * np.pi / 180
+        self._theta_z = fluoroscopy.image_rot_zx[0] * np.pi / 180
+        camera.lookAt = self._initial_look_at
+        self.rotate(0, 0)
+        target = self.intervention.target.coordinates3d
+        target = tracking3d_to_vessel_cs(
+            target, fluoroscopy.image_rot_zx, fluoroscopy.image_center
+        )
+        simulation.target_node.MechanicalObject.translation = [
+            target[0],
+            target[1],
+            target[2],
+        ]
+        self._sofa.Simulation.init(simulation.target_node)
+        if self.interim_target.all_coordinates3d:
+            interim_targets_vcs = tracking3d_to_vessel_cs(
+                self.interim_target.all_coordinates3d,
+                fluoroscopy.image_rot_zx,
+                fluoroscopy.image_center,
+            )
+            self.interim_targets = self.intervention.simulation.add_interim_targets(
+                list(interim_targets_vcs)
+            )
+
+    def close(self):
+        self._pygame.quit()  # pylint: disable=no-member
+
+    def translate(self, velocity: np.array):
+        simulation = self.intervention.simulation
+        dt = simulation.root.dt.value
+        camera = simulation.camera
+
+        position = camera.position
+        position += velocity * dt
+        camera.position = position
+
+        look_at = camera.lookAt
+        look_at += velocity * dt
+        camera.lookAt = look_at
+
+    def zoom(self, velocity: float):
+        simulation = self.intervention.simulation
+        dt = simulation.root.dt.value
+        camera = simulation.camera
+
+        position = camera.position
+        look_at = camera.lookAt
+        direction = look_at - position
+        direction = (
+            direction
+            / (direction[0] ** 2 + direction[1] ** 2 + direction[2] ** 2) ** 0.5
+        )
+        position += direction * velocity * dt
+        self._distance -= velocity * dt
+        camera.position = position
+
+    def rotate(self, lao_rao_speed: float, cra_cau_speed: float):
+        simulation = self.intervention.simulation
+        dt = simulation.root.dt.value
+        camera = simulation.camera
+
+        look_at = camera.lookAt
+        self._theta_x += cra_cau_speed * dt
+        self._theta_z += lao_rao_speed * dt
+        theta_x = self._theta_x
+        theta_z = self._theta_z
+
+        rotation_x = np.array(
+            [
+                [1, 0, 0],
+                [0, cos(theta_x), -sin(theta_x)],
+                [0, sin(theta_x), cos(theta_x)],
+            ]
+        )
+        rotation_z = np.array(
+            [
+                [cos(theta_z), -sin(theta_z), 0],
+                [sin(theta_z), cos(theta_z), 0],
+                [0, 0, 1],
+            ]
+        )
+        rotation = np.matmul(rotation_z, rotation_x)
+        offset = np.matmul(rotation, self._initial_direction * self._distance)
+
+        camera.position = look_at + np.array(offset)
+
+        camera_rot_x = np.array([cos(theta_x / 2), sin(theta_x / 2), 0, 0])
+        camera_rot_z = np.array([cos(theta_z / 2), 0, 0, sin(theta_z / 2)])
+
+        camera_orientation = self._quat_mult(camera_rot_x, self.initial_orientation)
+        camera_orientation = self._quat_mult(camera_rot_z, camera_orientation)
+
+        camera.orientation = np.array(
+            [
+                camera_orientation[1],
+                camera_orientation[2],
+                camera_orientation[3],
+                camera_orientation[0],
+            ]
+        )
+
+    @staticmethod
+    def _quat_mult(x, y):
+        return np.array(
+            [
+                x[0] * y[0] - x[1] * y[1] - x[2] * y[2] - x[3] * y[3],
+                x[0] * y[1] + x[1] * y[0] + x[2] * y[3] - x[3] * y[2],
+                x[0] * y[2] - x[1] * y[3] + x[2] * y[0] + x[3] * y[1],
+                x[0] * y[3] + x[1] * y[2] - x[2] * y[1] + x[3] * y[0],
+            ]
+        )
