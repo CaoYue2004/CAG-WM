@@ -7,6 +7,7 @@ Automated guidewire navigation in percutaneous coronary intervention can reduce 
 ![pre](https://github.com/user-attachments/assets/1d5685df-510b-4c15-903c-e12c68514d4b)
 ![pre_4](https://github.com/user-attachments/assets/787b42c3-8a04-480c-82cf-35320e9c53d9)
 ![pre_1](https://github.com/user-attachments/assets/56d058b3-b11d-4477-856c-c59e24e260de)
+![pre_5](https://github.com/user-attachments/assets/b9d47a69-1e33-4bcf-b7cd-04ed995aeeb4)
 
 More experimental videos are provided in the supplementary materials.
 
@@ -14,4 +15,12 @@ More experimental videos are provided in the supplementary materials.
 ![pre_3](https://github.com/user-attachments/assets/86ff87b6-a5f2-40c7-b4a9-c98d1f23c831)
 ![pre_4](https://github.com/user-attachments/assets/c0c8e8a0-1700-4c55-b5c8-b664223e9154)
 ![pre_2](https://github.com/user-attachments/assets/484dbc60-72c8-443d-92fc-58bebeaa9846)
+![pre_1](https://github.com/user-attachments/assets/fd6e2c4f-4277-439f-93f1-6b91ced3daa8)
+
+## Getting Start
+### SOFA Binaries
+1. Get the [SOFA binaries <= v23.06](https://www.sofa-framework.org/download/)  and install dependencies. Unfortunately in v23.12 the BeamAdapter interface changed and adaption is still pending. 
+2. Set environment variables as described [here](https://sofapython3.readthedocs.io/en/latest/content/Installation.html#using-python3). SOFA_ROOT is necessary for SOFA to run properly. 
+PYTHONPATH helps Python find the SOFA Python packages, this can be replaced by linking the SOFA Python packages (normally: $SOFA_ROOT/plugins/SofaPython3/lib/python3/site-packages) to the site-packages of the sofa instance your are using (Sofa, SofaRuntime, SofaTypes, splib) using ```ln -s <source> <target>```
+### Training Environment
 
