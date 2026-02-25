@@ -7,11 +7,12 @@ class ComputeFailed(Terminal):
 
     @property
     def terminal(self) -> bool:
-        return self.intervention.simulation.simulation_error        # error=true时终止
+        return self.intervention.simulation.simulation_error        
 
     def step(self) -> None:
         ...
 
     def reset(self, episode_nr: int = 0) -> None:
         ...
+
 
