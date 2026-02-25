@@ -29,24 +29,19 @@ class FdTeeCapture:
                 except Exception:
                     break
 
-                # 回显到原终端
                 try:
                     os.write(self._old_fd, chunk)
                 except Exception:
                     pass
 
-                # 回调：尽量按行切，但即便没换行也会触发（用当前缓冲）
                 if self.callback is not None:
                     self._buf += chunk
-                    # 尝试按 \n 切行
                     while b"\n" in self._buf:
                         line, self._buf = self._buf.split(b"\n", 1)
                         try:
                             self.callback(line.decode(errors="replace"))
                         except Exception:
                             pass
-                    # 另外：对“没换行”的情况，也给 callback 一份当前片段（可选）
-                    # 你如果只想按行触发，就把下面这段注释掉
                     try:
                         self.callback(chunk.decode(errors="replace"))
                     except Exception:
@@ -71,3 +66,4 @@ class FdTeeCapture:
                 self._r = None
         except Exception:
             pass
+
