@@ -6,10 +6,6 @@ from ..intervention import Intervention
 from ..intervention.navigator import GraphNavigator
 
 class RoutePtsLocal(Observation):
-    """
-    观测：navigator.route_pts_local
-    输出：shape (K,3) 或 flatten 为 (K*3,)
-    """
 
     def __init__(
         self,
@@ -37,17 +33,13 @@ class RoutePtsLocal(Observation):
     def reset(self, episode_nr: int = 0) -> None:
         _ = episode_nr
 
-        # 关键：确保 reset 后 route 已经可用
-        # 你可以选择：
-        # A) 只依赖外部 env 在 reset 时已经调用过 navigator.reset() + navigator.step()
-        # B) 这里自己再调用一次 navigator.step()（更鲁棒，但要求 tip/target 已ready）
         route = self.intervention.navigator.route_pts_local.astype(np.float32)
         self.obs = route
 
     def step(self) -> None:
-        # 每步先更新 navigator，再取出 route
         route = self.intervention.navigator.route_pts_local.astype(np.float32)
         self.obs = route
+
 
 
 
