@@ -6,13 +6,7 @@ import gymnasium as gym
 from ...util import EveObject
 from ..simulation import Simulation
 
-
-# -------------------------
-# Fluoroscopy：透视成像/荧光透视（C-arm）抽象接口
-# 负责提供：图像（image） + 2D/3D tracking（血管/目标/器械投影与位置）
-# -------------------------
 class Fluoroscopy(EveObject):
-    # ----------- 配置/参数类字段（类型注解，不是赋值） -----------
     image_frequency: float
     image_rot_zx: Tuple[float, float]
     image_center: Optional[Tuple[float, float, float]]
@@ -68,9 +62,5 @@ class Fluoroscopy(EveObject):
         return deepcopy(state)
 
 
-# -------------------------
-# SimulatedFluoroscopy：Fluoroscopy 的一个具体实现分支
-# 表示“由仿真 Simulation 驱动生成”的透视系统（而不是读取真实 DICOM/视频）
-# -------------------------
 class SimulatedFluoroscopy(Fluoroscopy):
     simulation: Simulation
