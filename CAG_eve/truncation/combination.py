@@ -2,7 +2,6 @@ from typing import List
 from .truncation import Truncation
 
 
-# 定义一个截断条件组合器 Combination，继承 Truncation
 class Combination(Truncation):
     def __init__(self, truncations: List[Truncation]) -> None:
         self.truncations = truncations
