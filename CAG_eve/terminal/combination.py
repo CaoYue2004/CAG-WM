@@ -2,7 +2,6 @@ from . import Terminal
 from typing import List
 
 
-# 定义一个终止条件组合器 Combination，继承 Terminal
 class Combination(Terminal):
     def __init__(self, terminals: List[Terminal]) -> None:
         self.terminals = terminals
