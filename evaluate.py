@@ -25,18 +25,6 @@ print("MAIN PID =", os.getpid())
 
 
 class LegacyStepAPIWrapper(gym.Wrapper):
-    """
-    将 gymnasium 风格：
-        reset() -> (obs, info)
-        step()  -> (obs, reward, terminated, truncated, info)
-    适配成你们 OnlineTrainer 里用的旧风格：
-        reset() -> obs
-        step()  -> (obs, reward, done, info)
-    并确保 info 里有：
-        info['terminated'] : bool
-        info['success']    : bool (尽量推断/默认 False)
-    以及提供 rand_act() 给 Trainer 用。
-    """
     def __init__(self, env: gym.Env):
         super().__init__(env)
         self._last_info: Dict[str, Any] = {}
@@ -46,7 +34,6 @@ class LegacyStepAPIWrapper(gym.Wrapper):
         if isinstance(out, tuple) and len(out) == 2:
             obs, info = out
         else:
-            # 兼容一些非标准 env
             obs, info = out, {}
         self._last_info = dict(info) if isinstance(info, dict) else {}
         return obs
@@ -61,7 +48,6 @@ class LegacyStepAPIWrapper(gym.Wrapper):
             info.setdefault("truncated", bool(truncated))
             info.setdefault("done_for_learning", bool(terminated))
         elif isinstance(out, tuple) and len(out) == 4:
-            # 兼容旧 env: obs, reward, done, info
             obs, reward, done, info = out
             info = dict(info) if isinstance(info, dict) else {}
             info.setdefault("terminated", bool(done))
@@ -70,7 +56,6 @@ class LegacyStepAPIWrapper(gym.Wrapper):
         else:
             raise RuntimeError(f"Unexpected env.step return: {type(out)} / len={len(out) if isinstance(out, tuple) else 'NA'}")
 
-        # success：你的 eve.info 里可能已有 success；没有就默认 False
         info.setdefault("success", bool(info.get("is_success", False)))
         info.setdefault("is_success", bool(info.get("success", False)))
 
@@ -78,34 +63,17 @@ class LegacyStepAPIWrapper(gym.Wrapper):
         return obs, float(reward), bool(done), info
 
     def rand_act(self):
-        # 你们 Trainer 里会用 self.env.rand_act()
         a = self.action_space.sample()
-        # 一些实现会用 torch tensor；你的 Trainer 在 to_td 里用 torch.full_like(self.env.rand_act())
-        # 所以这里返回 torch.Tensor 更稳
         return torch.as_tensor(a, dtype=torch.float32)
 
 
 def make_env(cfg):
-    """
-    cfg 来自 Hydra/parse_cfg，要求 cfg.env 下有 CAG 环境参数：
-      cfg.env.model_folder / insertion_vessel_name / insertion_point_idx / ...
-    """
-    # 你自己的 make_cag_env 接收的是“属性访问”的 cfg（cfg.xxx）
-    # Hydra cfg.env 是 OmegaConf 的节点，也支持点访问，直接传即可
     env = make_eval_env(cfg.env)
-
-    # 适配你们 Trainer 的旧接口
     env = LegacyStepAPIWrapper(env)
-
-    # （可选）如果你们 Logger/video 需要 render，也可以在这里再包一层，或让 env.render() 可用
     return env
 
 
 def _infer_shapes_for_cfg(cfg, env):
-    """
-    你们 parse_cfg 可能已经会推导这些字段；这里兜底补齐：
-      obs_shape, action_dim, episode_length, seed_steps
-    """
     # action_dim
     if getattr(cfg, "action_dim", None) in (None, "???"):
         if hasattr(env.action_space, "shape") and env.action_space.shape is not None:
@@ -113,13 +81,11 @@ def _infer_shapes_for_cfg(cfg, env):
         else:
             raise ValueError("Cannot infer action_dim from env.action_space")
 
-    # obs_shape：如果是 Dict space，建议你在环境里 already flatten；否则这里尽量推断
     if getattr(cfg, "obs_shape", None) in (None, "???"):
         ospec = env.observation_space
         if isinstance(ospec, gym.spaces.Box):
             cfg.obs_shape = tuple(ospec.shape)
         elif isinstance(ospec, gym.spaces.Dict):
-            # dict -> flatten dim（按键顺序）
             dim = 0
             for sp in ospec.spaces.values():
                 if isinstance(sp, gym.spaces.Box):
@@ -130,21 +96,17 @@ def _infer_shapes_for_cfg(cfg, env):
         else:
             raise ValueError(f"Unsupported observation_space for obs_shape: {type(ospec)}")
 
-    # episode_length：优先用你环境里 MaxSteps（cfg.env.max_steps）
     if getattr(cfg, "episode_length", None) in (None, "???"):
         if hasattr(cfg, "env") and getattr(cfg.env, "max_steps", None) is not None:
             cfg.episode_length = int(cfg.env.max_steps)
         elif hasattr(env, "max_episode_steps"):
             cfg.episode_length = int(env.max_episode_steps)
         else:
-            # 兜底：不写也行，但有的代码会用
             cfg.episode_length = 200
 
-    # seed_steps：很多实现默认用 episode_length * 5 或一个常数
     if getattr(cfg, "seed_steps", None) in (None, "???"):
         cfg.seed_steps = int(min(5000, cfg.episode_length * 10))
 
-    # multitask：CAG 一般单任务
     if getattr(cfg, "multitask", None) in (None, "???"):
         cfg.multitask = False
 
@@ -159,7 +121,6 @@ def _to_torch_any(x: Any, device) -> Union[torch.Tensor, Dict[str, Any]]:
 	elif not torch.is_tensor(x):
 		x = torch.as_tensor(x)
 
-	# 到这里，x 一定是 Tensor
 	return x.to(device=device, dtype=torch.float32)
 
 
@@ -175,17 +136,11 @@ def to_td(self, obs, action=None, reward=None, done=None, info=None):
     if reward is not None:
         data["reward"] = torch.as_tensor(reward, device=self.device, dtype=torch.float32).reshape(())
 
-    # =========================
-    # 1) 环境层 done：用于 reset（terminated or truncated）
-    # =========================
     if done is not None:
         data["done"] = torch.as_tensor(done, device=self.device, dtype=torch.bool).reshape(())
 
     data["info"] = info
 
-    # =========================
-    # 2) 解析 terminated / truncated
-    # =========================
     terminated = None
     truncated = None
     if info is not None and isinstance(info, dict):
@@ -196,22 +151,16 @@ def to_td(self, obs, action=None, reward=None, done=None, info=None):
             truncated = bool(info["truncated"])
             data["truncated"] = torch.as_tensor(truncated, device=self.device, dtype=torch.bool).reshape(())
 
-    # 如果外部没传 done，就根据 (terminated or truncated) 补齐 done（仅用于 reset 语义）
     if done is None and (terminated is not None or truncated is not None):
         d = (terminated is True) or (truncated is True)
         data["done"] = torch.as_tensor(d, device=self.device, dtype=torch.bool).reshape(())
 
-    # =========================
-    # 3) ✅ 学习层 done：只把 terminated 当“真终止”
-    #    优先用 wrapper 写入的 done_for_learning
-    # =========================
     done_for_learning = None
     if info is not None and isinstance(info, dict) and "done_for_learning" in info:
         done_for_learning = bool(info["done_for_learning"])
     elif terminated is not None:
         done_for_learning = bool(terminated)
     elif done is not None:
-        # 兜底：旧 env 没区分，就只能用 done
         done_for_learning = bool(done)
     else:
         done_for_learning = False
@@ -314,11 +263,6 @@ def evaluate(cfg: dict):
 
             ep_rewards.append(ep_reward)
             ep_successes.append(info['success'])
-
-            print(f"帧数量: {len(frames)}")
-            if frames:
-                print(
-                    f"数据类型: {frames[0].dtype}, 尺寸: {frames[0].shape}, 最小值: {frames[0].min()}, 最大值: {frames[0].max()}")
 
             imageio.mimsave(
                 os.path.join(video_dir, f'{task}-{i}.mp4'),
