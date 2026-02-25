@@ -69,40 +69,19 @@ class CenterlineRandom(Target):
         outside_forbidden = np.invert(in_excluded)
         self._potential_targets = potential_targets[outside_forbidden]
 
-    # -------------------- 原版 ---------------------------------------
-    '''def _in_excluded_branches(
-        self, coordinates: np.ndarray, excluded_branches: List[str]
-    ):
-        in_branch = [False] * coordinates.shape[0]
-        for branch_name in excluded_branches:
-            # print(f'branch_name={branch_name}')
-            branch = self.vessel_tree[branch_name]
-            print(
-                f"[DEBUG] branch_name={branch_name}, "
-                f"type={type(branch)}, "
-                f"is BranchWithRadii? {isinstance(branch, BranchWithRadii)}"
-            )
-            if isinstance(branch, BranchWithRadii):
-                in_branch = branch.in_branch(coordinates) + in_branch
-        return in_branch'''
-
+    
     def _in_excluded_branches(self, potential_targets, excluded_branches):
         potential_targets = np.asarray(potential_targets)
         N = potential_targets.shape[0]
 
-        # 没有候选点：返回空的 bool mask（shape=(0,)）
         if N == 0:
             return np.zeros((0,), dtype=bool)
 
-        # 没有排除分支：全部不排除（全 False）
         if excluded_branches is None or len(excluded_branches) == 0:
             return np.zeros((N,), dtype=bool)
 
-        # ---- 下面才是你的原本逻辑：计算哪些点落在 excluded 分支附近 ----
         mask = np.zeros((N,), dtype=bool)
         for b in excluded_branches:
             coords = self.vessel_tree[b].coordinates  # [M,3]
-            # TODO: 根据你的判据更新 mask
-            # mask |= some_boolean_condition(...)
         return mask
 
