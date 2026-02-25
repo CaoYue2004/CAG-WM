@@ -11,12 +11,12 @@ class ComputeFailed(Reward):
 
     def step(self) -> None:
         error = bool(self.intervention.simulation.simulation_error)
-        # 只在首次出错那一步惩罚一次
         self.reward = -self.factor if (error and not self._last_error) else 0.0
         self._last_error = error
 
     def reset(self, episode_nr: int = 0) -> None:
         self.reward = 0.0
         self._last_error = False
+
 
 
