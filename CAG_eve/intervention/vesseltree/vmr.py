@@ -16,7 +16,6 @@ LOW_HIGH_BUFFER = 3
 
 
 def _get_branches(model_dir, vtu_mesh, check_if_points_in_mesh: bool) -> List[Branch]:
-    # 从模型目录读取所有 .pth 中心线路径文件，转成 Branch 列表
     path_dir = os.path.join(model_dir, "Paths")
     files = _get_available_pths(path_dir)
     files = sorted(files)
@@ -47,7 +46,6 @@ def _get_vtk_file(directory: str, file_ending: str) -> str:
 def _load_points_from_pth(
     pth_file_path: str, vtu_mesh: pv.UnstructuredGrid, check_if_points_in_mesh: bool
 ) -> Branch:
-    # 读取单个 pth 文件，解析其中的 <pos x= y= z=> 点，生成 Branch
     points = []
     name = os.path.basename(pth_file_path)[:-4]
     with open(pth_file_path, "r", encoding="utf-8") as file:
@@ -81,46 +79,31 @@ def _load_points_from_pth(
 
 
 class VMR(VesselTree):
-    """
-        基于 VMR 数据集构建的血管树：
-        - 从 VMR 下载模型
-        - 读取中心线分支
-        - 计算插入点 / 分叉点
-        - 生成可视化 mesh
-        """
     def __init__(
         self,
-        model: str,     # VMR 模型名称（用于 download_vmr_files）
-        insertion_vessel_name: str,     # 插入所在分支名称（例如 femoral 等）
-        insertion_point_idx: int,       # 插入点在该分支中心线点序列中的索引
-        insertion_direction_idx_diff: int,      # 插入方向用 insertion_point_idx + diff 的点来估计方向
-        approx_branch_radii: Union[List[float], float],     # 分支半径的近似值（用于分叉检测阈值等），可以是标量或列表
-        rotate_yzx_deg: Optional[Tuple[float, float, float]] = None,        # 可选：对整个模型做旋转（顺序 y,z,x），单位度
-        check_if_points_in_mesh: bool = True,       # 是否检查中心线点确实落在 mesh 体内
+        model: str,     
+        insertion_vessel_name: str,     
+        insertion_point_idx: int,       
+        insertion_direction_idx_diff: int,      
+        approx_branch_radii: Union[List[float], float],     
+        rotate_yzx_deg: Optional[Tuple[float, float, float]] = None,        
+        check_if_points_in_mesh: bool = True,       
     ) -> None:
-        # 模型名称（用于下载）
         self.model = model
-        # 插入相关参数
         self.insertion_point_idx = insertion_point_idx
         self.insertion_direction_idx_diff = insertion_direction_idx_diff
         self.insertion_vessel_name = insertion_vessel_name.lower()
-        # 分支半径近似值（用于分叉检测）
         self.approx_branch_radii = approx_branch_radii
-        # 可选旋转
         self.rotate_yzx_deg = rotate_yzx_deg
-        # 是否检查中心线点是否在体网格内
         self.check_if_points_in_mesh = check_if_points_in_mesh
 
-        # 下载 / 定位模型目录
         self._model_folder = download_vmr_files(model)
         self.mesh_folder = os.path.join(self._model_folder, "Meshes")
 
-        # 预读分支以初始化坐标空间
         branches = self._read_branches()
         self.coordinate_space = self._calc_coord_space(branches)
         self.coordinate_space_episode = self.coordinate_space
 
-        # 运行时真正使用的结构（延迟初始化）
         self.branches = None
         self.insertion = None
         self.branching_points = None
@@ -128,9 +111,6 @@ class VMR(VesselTree):
 
         self._mesh_path = None
 
-    # =========================
-    # Mesh 路径接口
-    # =========================
     @property
     def mesh_path(self) -> str:
         if self._mesh_path is None:
@@ -141,16 +121,10 @@ class VMR(VesselTree):
     def visu_mesh_path(self) -> str:
         return self.mesh_path
 
-    # =========================
-    # Episode reset
-    # =========================
     def reset(self, episode_nr=0, seed: int = None) -> None:
         if self.branches is None:
             self._make_branches()
 
-    # =========================
-    # 构建血管树结构
-    # =========================
     def _make_branches(self):
         branches = self._read_branches()
         self.branches = branches
@@ -200,3 +174,4 @@ class VMR(VesselTree):
         obj_mesh_path = get_temp_mesh_path("VMR")
         pv.save_meshio(obj_mesh_path, mesh)
         self._mesh_path = obj_mesh_path
+
