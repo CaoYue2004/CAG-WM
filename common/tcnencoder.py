@@ -134,16 +134,13 @@ class DictObsEncoderTCN(nn.Module):
 
         # target: (B,1,3) -> (B,3)
         if target.dim() == 3:
-            # (1, N, 3) -> (N, 3)   或   (N, 1, 3) -> (N, 3)
             if target.shape[0] == 1 and target.shape[-1] == 3:
                 target = target.squeeze(0)  # (N,3)
             elif target.shape[1] == 1 and target.shape[-1] == 3:
                 target = target.squeeze(1)  # (N,3)
             else:
-                # 兜底：只保留最后一维是3，其余展平到 batch
                 target = target.reshape(-1, 3)  # (...,3) -> (N,3)
 
-        # rot: already (B,2)，但防御一下
         if rot.dim() > 2:
             rot = rot.view(rot.shape[0], -1)
 
@@ -157,4 +154,5 @@ class DictObsEncoderTCN(nn.Module):
         if seq_mode:
             out = out.view(H, B, -1)
         return out
+
 
