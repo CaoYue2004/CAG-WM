@@ -27,7 +27,6 @@ class TargetReached(Reward):
     def step(self) -> None:
         reward = 0.0
 
-        # ===== 中间点奖励 =====
         if (
             self.interim_target is not None
             and self.interim_target.reached
@@ -36,7 +35,6 @@ class TargetReached(Reward):
             reward += self.interim_factor
             self._interim_reward_given = True
 
-        # ===== 最终点奖励 =====
         final_reached = self.intervention.target.reached
 
         if self.final_only_after_all_interim:
