@@ -6,7 +6,6 @@ from ..intervention import Intervention
 from ..interimtarget import InterimTarget
 
 
-# 定义奖励类 TipToTargetDistDelta：基于“针尖到目标距离的变化量”给奖励
 class TipToTargetDistDelta(Reward):
     def __init__(
         self,
@@ -20,14 +19,10 @@ class TipToTargetDistDelta(Reward):
         self._last_dist = None
         self._last_target = None
 
-    # step：每个环境 step 调用一次，计算距离变化并给奖励
     def step(self) -> None:
-        # 取出导丝/器械尖端 tip 的三维坐标（tracking3d 的第 0 个点）
         tip = self.intervention.fluoroscopy.tracking3d[0]
-        # 如果中间目标存在坐标，则使用中间目标作为当前 target
         if self.interim_target.coordinates3d is not None:
             target = self.interim_target.coordinates3d
-        # 否则使用最终目标坐标
         else:
             target = self.intervention.target.coordinates3d
 
