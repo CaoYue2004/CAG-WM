@@ -1,0 +1,108 @@
+from typing import Optional, List
+import random
+import numpy as np
+
+from .target import Target
+from ..vesseltree import VesselTree
+from ..vesseltree.util.branch import BranchWithRadii
+from ..fluoroscopy import Fluoroscopy
+from ...util.coordtransform import vessel_cs_to_tracking3d, tracking3d_to_2d
+
+
+class CenterlineRandom(Target):
+    def __init__(
+        self,
+        vessel_tree: VesselTree,
+        fluoroscopy: Fluoroscopy,
+        threshold: float,
+        branches: Optional[List[str]] = None,
+        min_distance_between_possible_targets: Optional[float] = None,
+    ) -> None:
+        self.vessel_tree = vessel_tree
+        self.fluoroscopy = fluoroscopy
+        self.threshold = threshold
+        self.branches = branches
+        self.min_distance_between_possible_targets = (
+            min_distance_between_possible_targets
+        )
+        self.reached = False
+        self.coordinates3d = np.zeros((3,), dtype=np.float32)
+
+        self._potential_targets = None
+        self._branches_initialized = None
+        self._rng = random.Random()
+
+    @property
+    def coordinates2d(self) -> np.ndarray:
+        return tracking3d_to_2d(self.coordinates3d)
+
+    def reset(self, episode_nr=0, seed=None) -> None:
+        if seed is not None:
+            self._rng = random.Random(seed)
+        if self._branches_initialized != self.vessel_tree.branches:
+            self._init_centerline_point_cloud()
+            self._branches_initialized = self.vessel_tree.branches
+        target_vessel_cs = self._rng.choice(self._potential_targets)
+        self.coordinates3d = vessel_cs_to_tracking3d(
+            target_vessel_cs,
+            self.fluoroscopy.image_rot_zx,
+            self.fluoroscopy.image_center,
+            self.fluoroscopy.field_of_view,
+        )
+        self.reached = False
+
+    def _init_centerline_point_cloud(self):
+        if self.branches is None:
+            branch_keys = self.vessel_tree.keys()
+            excluded_branches = []
+        else:
+            branch_keys = set(self.branches) & set(self.vessel_tree.keys())
+            excluded_branches = set(self.vessel_tree.keys()) - set(self.branches)
+        branch_keys = sorted(branch_keys)
+        potential_targets = np.empty((0, 3))
+        for branch in branch_keys:
+            points = self.vessel_tree[branch].coordinates
+            potential_targets = np.vstack((potential_targets, points))
+
+        in_excluded = self._in_excluded_branches(potential_targets, excluded_branches)
+        # print(f'in_excluded={in_excluded}')
+        outside_forbidden = np.invert(in_excluded)
+        self._potential_targets = potential_targets[outside_forbidden]
+
+    # -------------------- 原版 ---------------------------------------
+    '''def _in_excluded_branches(
+        self, coordinates: np.ndarray, excluded_branches: List[str]
+    ):
+        in_branch = [False] * coordinates.shape[0]
+        for branch_name in excluded_branches:
+            # print(f'branch_name={branch_name}')
+            branch = self.vessel_tree[branch_name]
+            print(
+                f"[DEBUG] branch_name={branch_name}, "
+                f"type={type(branch)}, "
+                f"is BranchWithRadii? {isinstance(branch, BranchWithRadii)}"
+            )
+            if isinstance(branch, BranchWithRadii):
+                in_branch = branch.in_branch(coordinates) + in_branch
+        return in_branch'''
+
+    def _in_excluded_branches(self, potential_targets, excluded_branches):
+        potential_targets = np.asarray(potential_targets)
+        N = potential_targets.shape[0]
+
+        # 没有候选点：返回空的 bool mask（shape=(0,)）
+        if N == 0:
+            return np.zeros((0,), dtype=bool)
+
+        # 没有排除分支：全部不排除（全 False）
+        if excluded_branches is None or len(excluded_branches) == 0:
+            return np.zeros((N,), dtype=bool)
+
+        # ---- 下面才是你的原本逻辑：计算哪些点落在 excluded 分支附近 ----
+        mask = np.zeros((N,), dtype=bool)
+        for b in excluded_branches:
+            coords = self.vessel_tree[b].coordinates  # [M,3]
+            # TODO: 根据你的判据更新 mask
+            # mask |= some_boolean_condition(...)
+        return mask
+
