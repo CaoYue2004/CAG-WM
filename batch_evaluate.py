@@ -62,7 +62,6 @@ class LegacyStepAPIWrapper(gym.Wrapper):
         return torch.as_tensor(a, dtype=torch.float32)
 
 
-# ── 数据结构 ────────────────────────────────────────────────────────────────
 @dataclass
 class EpisodeResult:
     target_idx: int
@@ -72,9 +71,9 @@ class EpisodeResult:
     total_reward: float
     duration_seconds: float
     steps: int
-    initial_distance: float             # reset 后、第一步前的距离
-    final_distance: float               # episode 结束时的距离
-    distance_ratio: float               # final_distance / initial_distance（越小越好）
+    initial_distance: float             
+    final_distance: float               
+    distance_ratio: float               
     terminated: bool
     truncated: bool
 
@@ -90,14 +89,12 @@ class TargetSummary:
     mean_duration: float
     mean_initial_distance: float
     mean_final_distance: float
-    mean_distance_ratio: float          # 平均 final/initial
-    best_distance_ratio: float          # 最小 final/initial（最优 episode）
+    mean_distance_ratio: float          
+    best_distance_ratio: float          
     episodes: List[EpisodeResult] = field(default_factory=list)
 
 
-# ── 距离提取辅助 ────────────────────────────────────────────────────────────
 def extract_distance(info: Dict[str, Any], obs: Any, target: List[float]) -> float:
-    """从 info 或 obs 中提取「当前末端到目标的距离」。"""
     for key in ("distance", "dist_to_goal", "final_distance", "dist"):
         if key in info:
             return float(info[key])
@@ -114,15 +111,12 @@ def extract_distance(info: Dict[str, Any], obs: Any, target: List[float]) -> flo
 
 
 def safe_ratio(final: float, initial: float) -> float:
-    """计算 final/initial，处理 nan 和除零。"""
     if np.isnan(final) or np.isnan(initial) or initial == 0.0:
         return float("nan")
     return final / initial
 
 
-# ── 工具函数：穿透所有 wrapper 拿到底层 env ───────────────────────────────────
 def _unwrap_env(env):
-    """递归剥除 gym.Wrapper，直到找到有 intervention 属性的底层 env。"""
     current = env
     while True:
         if hasattr(current, 'intervention'):
@@ -136,7 +130,6 @@ def _unwrap_env(env):
             )
 
 
-# ── 核心评估函数 ─────────────────────────────────────────────────────────────
 def evaluate_one_target(
     agent,
     env,
@@ -153,7 +146,7 @@ def evaluate_one_target(
     target_label = target_cfg.get("label", f"target_{target_idx}")
 
     episodes: List[EpisodeResult] = []
-    ep = 0  # 改为手动计数
+    ep = 0  
 
     while ep < n_episodes:
         reset_kwargs = {}
@@ -184,30 +177,23 @@ def evaluate_one_target(
             last_info = info
             last_obs = obs
 
-            # print(f'ep1={ep}')      # 与ep0相同
-            # ── 检测 simulation_error（不 break，让 done=True 自然退出） ──
             if info.get("simulation_error", False):
                 simulation_error = True
 
-            '''if any(k for k in info if "sim" in k.lower() or "error" in k.lower() or "warn" in k.lower()):
-                print(
-                    f"\n    [DEBUG] suspicious info keys: { {k: v for k, v in info.items() if 'sim' in k.lower() or 'error' in k.lower() or 'warn' in k.lower()} }")'''
-
-            if save_video and not simulation_error:  # error 时不录视频
+            if save_video and not simulation_error:  
                 frame = env.render()
                 if frame is not None:
                     frames.append(frame)
 
             if max_steps is not None and steps >= max_steps:
                 break
-
-        # ── simulation_error → 打印提示，重试，不计 ep ──────────────────────
+                
         if simulation_error:
             print(colored(
                 f"\n    [simulation_error] ep {ep:02d} aborted at step {steps}, retrying...",
                 "magenta"
             ))
-            continue  # ep 不增加，重新跑
+            continue 
 
         t_end = time.perf_counter()
         duration = t_end - t_start
@@ -251,9 +237,8 @@ def evaluate_one_target(
             f"(ratio={ratio_str}) | time={duration:.2f}s"
         )
 
-        ep += 1  # 只有正常完成才计数
-
-    # ── 汇总 ──
+        ep += 1  
+        
     success_rate        = float(np.mean([e.success for e in episodes]))
     mean_reward         = float(np.mean([e.total_reward for e in episodes]))
     mean_steps          = float(np.mean([e.steps for e in episodes]))
@@ -284,7 +269,6 @@ def evaluate_one_target(
     )
 
 
-# ── 结果输出 ─────────────────────────────────────────────────────────────────
 def print_summary_table(summaries: List[TargetSummary]):
     sep = "─" * 110
     header = (
@@ -363,11 +347,9 @@ def generate_html_report(summaries: List[TargetSummary], path: str):
         return str(v)
 
     def _ratio_bar(ratio):
-        """用小色块直观展示 ratio（0=绿 1=红）。"""
         if isinstance(ratio, float) and np.isnan(ratio):
             return "<span style='color:#5a6480'>N/A</span>"
         pct = min(max(ratio * 100, 0), 100)
-        # 从绿渐变到红
         r = int(min(pct * 2.55, 240))
         g = int(min((100 - pct) * 2.55, 200))
         color = f"rgb({r},{g},80)"
@@ -521,7 +503,6 @@ def generate_html_report(summaries: List[TargetSummary], path: str):
 
 
 def load_targets(targets_arg: str) -> List[Dict[str, Any]]:
-    """从 JSON 文件路径或内联 JSON 字符串加载目标点列表。"""
     if os.path.isfile(targets_arg):
         with open(targets_arg) as f:
             data = json.load(f)
@@ -540,28 +521,12 @@ def load_targets(targets_arg: str) -> List[Dict[str, Any]]:
     return result
 
 
-# ── 主入口（与 evaluate.py 完全相同的 @hydra.main 风格） ─────────────────────
 @hydra.main(config_name='CAG_config', config_path='.')
 def batch_evaluate(cfg: dict):
-    """
-    批量评估脚本：对多组目标点分别跑若干 episode，输出汇总表格、CSV、JSON、HTML 报告。
-
-    batch 专用参数（在命令行以 key=value 形式传入，或写进 config.yaml）：
-        targets        : JSON 文件路径 或 内联 JSON 字符串，目标点列表
-        n_episodes     : 每个目标点跑几个 episode（默认 3）
-        max_steps      : 单 episode 最大步数（默认 None，沿用 env 设置）
-        output_dir     : 结果保存目录（默认 ./batch_eval_results）
-        save_video     : 是否保存视频（默认 false）
-
-    用法示例：
-        python batch_evaluate.py targets=targets.json checkpoint=./models/agent.pt
-        python batch_evaluate.py targets=targets.json checkpoint=./models/agent.pt n_episodes=5 save_video=true
-    """
     assert torch.cuda.is_available()
     cfg = parse_cfg(cfg)
     set_seed(cfg.seed)
 
-    # ── batch 专用字段，带默认值 ──
     targets_arg = str(cfg.get("targets",    "targets.json"))
     n_episodes  = int(cfg.get("n_episodes", 3))
     max_steps   = cfg.get("max_steps",  None)
@@ -580,11 +545,9 @@ def batch_evaluate(cfg: dict):
     print(colored(f"  checkpoint : {cfg.checkpoint}", "cyan"))
     print(colored(f"  output_dir : {output_dir}", "cyan"))
 
-    # ── 创建环境（与 evaluate.py 的 make_env 完全一致） ──
     env = make_eval_batch_env(cfg.env)
     env = LegacyStepAPIWrapper(env)
 
-    # 补齐 cfg 中可能缺失的形状字段（复用 evaluate.py 的 _infer_shapes_for_cfg 逻辑）
     if getattr(cfg, "action_dim", None) in (None, "???"):
         cfg.action_dim = int(np.prod(env.action_space.shape))
     if getattr(cfg, "obs_shape", None) in (None, "???"):
@@ -602,7 +565,6 @@ def batch_evaluate(cfg: dict):
     if getattr(cfg, "multitask", None) in (None, "???"):
         cfg.multitask = False
 
-    # ── 加载 Agent ──
     agent = TDMPC2(cfg)
     assert os.path.exists(cfg.checkpoint), f"Checkpoint not found: {cfg.checkpoint}"
     agent.load(cfg.checkpoint)
@@ -610,7 +572,6 @@ def batch_evaluate(cfg: dict):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # ── 批量评估 ──
     all_summaries: List[TargetSummary] = []
     for i, tcfg in enumerate(target_cfgs):
         label = tcfg.get("label", f"target_{i}")
@@ -630,7 +591,6 @@ def batch_evaluate(cfg: dict):
 
     env.close()
 
-    # ── 输出结果 ──
     print_summary_table(all_summaries)
     os.makedirs(output_dir, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
@@ -641,4 +601,5 @@ def batch_evaluate(cfg: dict):
 
 
 if __name__ == '__main__':
+
     batch_evaluate()
