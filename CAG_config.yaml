@@ -4,17 +4,14 @@ defaults:
 # =========================
 # Environment (CAG_eve)
 # =========================
-task: cag-eve-nav-seed_0095          # ✅ 必填：训练代码用它选择 make_env 分支
-obs: dict_state               # ✅ 保留：你环境是 state（Tracking2D/Target2D/Rotations）
-episodic: true            # 🟡 保留：看你训练代码是否用到（通常 TD-MPC2 会区分 episodic / continuing）
+task: cag-eve-nav      
+obs: dict_state               
+episodic: true            
 
-env:                       # ✅ 新增：把环境相关参数统一放到 env 下
-  # ---- 必须（vessel tree）----
-  model_folder: /media/star/d7a835bd-0f97-428f-a641-41a83a1043133/home/star/Projects/cy/stEVE-main/VESSEL_MODEL/seed_0095/
-  insertion_vessel_name: branch_042_s1201_e992
+  model_folder: 
+  insertion_vessel_name: 
   insertion_point_idx: 1
 
-  # ---- vessel tree 可选（有默认值可省）----
   insertion_direction_idx_diff: 5
   approx_branch_radii: 5.0
   check_if_points_in_mesh: false
@@ -54,16 +51,16 @@ env:                       # ✅ 新增：把环境相关参数统一放到 env 
   # =========================
   # Render
   # =========================
-  network_pkl: "/media/star/d7a835bd-0f97-428f-a641-41a83a1043133/home/star/Projects/cy/eg3d_raw/pretrained/network-snapshot-000648.pkl"
+  network_pkl: ""
   ppa: 30
   psa: 20
   seed: 10
-  csv: "/media/star/d7a835bd-0f97-428f-a641-41a83a1043133/home/star/Projects/cy/tdmpc2-main/tdmpc2/CAG_eve/visualisation/curve_points.csv"
+  csv: ""
 
 # =========================
 # Evaluation
 # =========================
-checkpoint: "/media/star/d7a835bd-0f97-428f-a641-41a83a1043133/home/star/Projects/cy/tdmpc2-main/tdmpc2/logs/cag-eve-nav-seed_0022/1/default/models/step_30000.pt"           # ✅ 如果是纯训练可设 null；评估脚本需要时再给路径
+checkpoint: ""           
 eval_episodes: 1
 eval_freq: 800
 
@@ -86,7 +83,7 @@ discount_min: 0.95
 discount_max: 0.995
 buffer_size: 1_000_000
 exp_name: default
-data_dir: ./data          # ✅ 你原来是 ???；必须给个路径
+data_dir: ./data          
 
 # =========================
 # Planning (MPC)
@@ -118,7 +115,7 @@ vmax: 10
 # =========================
 # Architecture
 # =========================
-model_size: 19           # ✅ 你原来是 ???；需要给一个（取决于你代码如何解释）
+model_size: 19           
 num_enc_layers: 2
 enc_dim: 128
 num_channels: 32
@@ -132,10 +129,10 @@ simnorm_dim: 8
 # =========================
 # Logging
 # =========================
-wandb_project: cag-tdmpc2  # ✅ 你原来是 ???；要么填，要么 enable_wandb=false
-wandb_entity: null         # 🟡 可空；或者填你的 entity
+wandb_project: cag-tdmpc2  
+wandb_entity: null         
 wandb_silent: false
-enable_wandb: true        # ✅ 建议默认先关，跑通再开
+enable_wandb: true        
 save_csv: true
 save_freq: 5000
 
@@ -146,24 +143,24 @@ compile: false
 save_video: false
 save_agent: true
 seed: 1
-work_dir: ./logs/cag-eve-nav_v1/1/default/eval_video/           # ✅ 你原来是 ???；需要给个输出目录
-task_title: cag-eve-nav    # 🟡 用于日志命名，可保留
+work_dir: ./logs/cag-eve-nav_v1/1/default/eval_video/           
+task_title: cag-eve-nav    
 
 
 # =========================
-# Convenience (建议由代码自动填充)
+# Convenience 
 # =========================
-multitask: false           # ✅ 单任务就写 false
-tasks: null                # ❌ 单任务可省略/置 null
+multitask: false           
+tasks: null                
 obs_shape:
   dict_state: [44]
-action_dim: null           # ❌ 应由 env.action_space 推导
-episode_length: null       # ❌ 应由 env.env.max_steps 或 env.max_episode_steps 推导
-obs_shapes: null           # ❌ 多任务才用
-action_dims: null          # ❌ 多任务才用
-episode_lengths: null      # ❌ 多任务才用
-seed_steps: 10           # 🟡 有的代码会根据 task/obs 自动设；不知道就留 null
-bin_size: null             # 🟡 通常跟 num_bins/vmin/vmax 或分布价值有关；多数实现会自动算/默认
+action_dim: null           
+episode_length: null       
+obs_shapes: null          
+action_dims: null          
+episode_lengths: null      
+seed_steps: 10           
+bin_size: null             
 
-targets: "/media/star/d7a835bd-0f97-428f-a641-41a83a1043133/home/star/Projects/cy/tdmpc2-main/tdmpc2/target.json"
 n_episodes: 3
+
