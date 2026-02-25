@@ -67,16 +67,16 @@ class LookAtPoseSampler:
     """
     
     def reverse_function(camera_origins, forward_vectors):
-        radius = torch.norm(camera_origins, dim=1)  # 计算半径
-        phi = torch.acos(camera_origins[:, 1] / radius)  # 计算 phi 角
-        v = phi / math.pi  # 计算垂直均值（vertical_mean）
-        v = torch.clamp(v, 1e-5, math.pi - 1e-5)  # 限制 v 的范围
+        radius = torch.norm(camera_origins, dim=1)  
+        phi = torch.acos(camera_origins[:, 1] / radius)  
+        v = phi / math.pi  
+        v = torch.clamp(v, 1e-5, math.pi - 1e-5)  
 
-        theta = torch.atan2(camera_origins[:, 2], camera_origins[:, 0])  # 计算 theta 角
-        h = theta  # 水平均值（horizontal_mean）
+        theta = torch.atan2(camera_origins[:, 2], camera_origins[:, 0])  
+        h = theta  
 
-        vertical_stddev = (torch.max(phi) - torch.min(phi)) / 2  # 计算垂直标准差（vertical_stddev）
-        horizontal_stddev = (torch.max(theta) - torch.min(theta)) / 2  # 计算水平标准差（horizontal_stddev）
+        vertical_stddev = (torch.max(phi) - torch.min(phi)) / 2  
+        horizontal_stddev = (torch.max(theta) - torch.min(theta)) / 2  
 
         return h, v, horizontal_stddev, vertical_stddev, radius
 
@@ -138,36 +138,29 @@ class UniformCameraPoseSampler:
     
 def campolar2rotation(a, b, r, device='cpu'):
     r = float(r)/ 157.7
-    theta = np.deg2rad(float(b)-90)  # 极角
-    phi = np.deg2rad(float(a))  # 极坐标
+    theta = np.deg2rad(float(b)-90)  
+    phi = np.deg2rad(float(a))  
 
     x_camera = r * np.sin(theta) * np.cos(phi)
     y_camera = r * np.sin(theta) * np.sin(phi)
     z_camera = r * np.cos(theta)
 
-    # 相机坐标系的三个轴在世界坐标系中的方向
     z_xc, z_yc, z_zc = -x_camera, -y_camera, -z_camera
-    ###########################
-    # x轴 平行yox平面
+
     x_xc, x_yc, x_zc = -1 / (x_camera + 10e-6), 1 / (y_camera + 10e-6), 0
     y_xc, y_yc, y_zc =((z_yc * x_zc - x_yc * z_zc), -(z_xc * x_zc - z_zc * x_xc), (z_xc * x_yc - z_yc * x_xc))
-    ##################################
-    #
+
     if y_zc > 0:
         x_xc, x_yc, x_zc = -x_xc, -x_yc, -x_zc
         y_xc, y_yc, y_zc = -y_xc, -y_yc, -y_zc
 
-    # 计算方向矩阵 D
     D = np.array([[x_xc, y_xc, z_xc],
                   [x_yc, y_yc, z_yc],
                   [x_zc, y_zc, z_zc]])
 
-    # 单位化 D 的列向量
     D_prime = D / (np.linalg.norm(D, axis=0)+10e-6)
 
-    # 计算旋转矩阵 R
     R = D_prime
-    # 计算平移矩阵 T
     T = np.eye(4)
     T[:3, :3] = R
     T[:3, 3] = [x_camera, y_camera, z_camera]
