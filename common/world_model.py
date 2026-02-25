@@ -13,7 +13,6 @@ class WorldModel(nn.Module):
 	TD-MPC2 implicit world model architecture.
 	Can be used for both single-task and multi-task experiments.
 	"""
-	# TD-MPC2 的“隐式世界模型”总成：encoder + dynamics + reward + termination + policy prior + Q-ensemble
 
 	def __init__(self, cfg):
 		super().__init__()
@@ -48,7 +47,6 @@ class WorldModel(nn.Module):
 		self.init()
 
 	def init(self):
-		# 用 state_dict 同步权重（兼容所有情况）
 		self._target_Qs.load_state_dict(self._Qs.state_dict())
 		for p in self._target_Qs.parameters():
 			p.requires_grad_(False)
@@ -70,7 +68,6 @@ class WorldModel(nn.Module):
 
 	def to(self, *args, **kwargs):
 		super().to(*args, **kwargs)
-		# super().to 会搬动 self._Qs，但 deepcopy 出来的 _target_Qs 需要重新建/搬一次
 		self.init()
 		return self
 
@@ -172,13 +169,13 @@ class WorldModel(nn.Module):
 
 		# Reparameterization trick
 		action = mean + eps * log_std.exp()
-		mean, action, log_prob = math.squash(mean, action, log_prob)		# 动作被放缩到[-1, 1]
+		mean, action, log_prob = math.squash(mean, action, log_prob)		
 
 		entropy_scale = scaled_log_prob / (log_prob + 1e-8)
 		info = {
 			"mean": mean,
 			"log_std": log_std,
-			"action_prob": torch.ones_like(log_prob),  # 或者 mean.new_ones(())
+			"action_prob": torch.ones_like(log_prob),  
 			"entropy": -log_prob,
 			"scaled_entropy": -log_prob * entropy_scale,
 		}
@@ -188,7 +185,6 @@ class WorldModel(nn.Module):
 	def Q(self, z, a, task, return_type='min', target=False, detach=False):
 		assert return_type in {'min', 'avg', 'all'}
 
-		# ---- 强制二维 ----
 		# z: [B,Z]
 		if z.dim() == 3:
 			assert z.size(0) == 1, f"Q expects z [B,Z], got {z.shape}"
@@ -207,7 +203,7 @@ class WorldModel(nn.Module):
 		x = torch.cat([z, a], dim=-1)  # [B, Z+A]
 
 		qnet = self._target_Qs if target else self._Qs
-		out = qnet(x)  # [num_q, B, ...] or [B,...] 视实现而定
+		out = qnet(x)  
 		if detach:
 			out = out.detach()
 
