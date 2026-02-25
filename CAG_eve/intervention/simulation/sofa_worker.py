@@ -25,15 +25,9 @@ def pack_state(env):
     }
 
 def sofa_worker_main(conn, env_ctor, env_kwargs):
-    """
-    conn: multiprocessing.Connection (Pipe 的子端)
-    env_ctor: 传入 SofaBeamAdapter 类本身（可 pickle）
-    env_kwargs: 初始化 SofaBeamAdapter 的 kwargs，例如 friction, dt_simulation
-    """
     try:
         env = env_ctor(**env_kwargs)
 
-        # 训练进程：永远不启用可视化
         env.init_visual_nodes = False
 
         while True:
@@ -48,7 +42,6 @@ def sofa_worker_main(conn, env_ctor, env_kwargs):
                 break
 
             elif cmd == "reset":
-                # args 里放你的 reset 参数
                 args = msg["args"]
                 devices_cfg = args.pop("devices_cfg")
                 from ..device import Device
@@ -56,7 +49,6 @@ def sofa_worker_main(conn, env_ctor, env_kwargs):
                 args["devices"] = devices
                 env.reset(**args)
 
-                # reset 后回传一次状态（可选）
                 conn.send({
                     "ok": True,
                     "state": {
@@ -95,9 +87,9 @@ def sofa_worker_main(conn, env_ctor, env_kwargs):
                 conn.send({"ok": False, "error": f"Unknown cmd: {cmd}"})
 
     except Exception as e:
-        # worker 崩溃时，把 traceback 发回去，主进程可重启
         tb = traceback.format_exc()
         try:
             conn.send({"ok": False, "error": str(e), "traceback": tb})
         except Exception:
             pass
+
