@@ -4,15 +4,9 @@ import numpy as np
 import time
 
 from .sofa_worker import sofa_worker_main
-from . import SofaBeamAdapter  # 你的原类路径自己改
+from . import SofaBeamAdapter  
 
 class SofaBeamAdapterProcess:
-    """
-    主进程 wrapper：
-    - reset/step 通过 Pipe 发给 worker
-    - poll(timeout) 等待结果
-    - 超时就 kill & restart
-    """
 
     def __init__(self, friction=0.1, dt_simulation=0.002, step_timeout_s=10.0):
         self.env_kwargs = dict(friction=friction, dt_simulation=dt_simulation)
@@ -21,7 +15,6 @@ class SofaBeamAdapterProcess:
         self._proc = None
         self._conn = None  # parent conn
 
-        # exposed state
         self.simulation_error = False
         self._dof_positions = None
         self._inserted_lengths = None
@@ -42,8 +35,6 @@ class SofaBeamAdapterProcess:
         return self._rotations
 
     def _start_worker(self):
-        # Linux 默认 fork 有时对 OpenGL/线程库不友好；训练不渲染一般 ok
-        # 更稳：用 spawn（代价是启动慢一点）
         ctx = mp.get_context("spawn")
 
         parent_conn, child_conn = ctx.Pipe(duplex=True)
@@ -56,7 +47,6 @@ class SofaBeamAdapterProcess:
         self._proc.start()
 
     def _kill_worker(self):
-        # 先关 conn，避免 fd 泄露
         try:
             if self._conn is not None:
                 self._conn.close()
@@ -120,7 +110,7 @@ class SofaBeamAdapterProcess:
           insertion_point, insertion_direction, mesh_path, devices,
           coords_high/low, vessel_visual_path, seed, ...
 
-        Training mode (方案1) typically passes coords_* / vessel_visual_path as None.
+        Training mode typically passes coords_* / vessel_visual_path as None.
         """
 
         # 1) devices: List[Device]  -> devices_cfg: List[dict] (pickle-safe)
@@ -163,7 +153,6 @@ class SofaBeamAdapterProcess:
         return []
 
     def remove_interim_target(self, interim_target):
-        # 训练不渲染时通常不用删具体节点；可以在 worker 里实现为 no-op
         return None
 
     def _update_from_state(self, state: dict):
@@ -171,3 +160,4 @@ class SofaBeamAdapterProcess:
         self._inserted_lengths = state["inserted_lengths"]
         self._rotations = state["rotations"]
         self.simulation_error = bool(state["simulation_error"])
+
