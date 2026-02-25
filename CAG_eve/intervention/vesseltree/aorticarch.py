@@ -10,8 +10,6 @@ from .util.branch import (
     omit_branches_axis,
     BranchWithRadii,
 )
-# 主动脉弓各分支“生成器/模板”
-# 这些函数通常返回：某条分支（BranchWithRadii）以及可能的关键点（如分叉处点）
 from .aorticarcharteries import (
     aorta_generator,
     brachiocephalic_trunk_static,
@@ -29,9 +27,7 @@ from .aorticarcharteries import (
     right_subclavian_VI,
     common_origin_VI,
 )
-# 根据某条分支起点计算“插入点与插入方向”（用于器械入口位姿）
 from .util import calc_insertion_from_branch_start
-# 将分支集合生成临时 mesh（供 SOFA 碰撞/渲染用）
 from .util.meshing import generate_temp_mesh
 
 COORD_SPACE_BUFFER = 0.00
@@ -46,7 +42,6 @@ class ArchType(str, Enum):
     VII = "VII"
 
 
-# 主动脉弓血管树：继承 VesselTree
 class AorticArch(VesselTree):
     def __init__(
         self,
@@ -287,3 +282,4 @@ class AorticArch(VesselTree):
         idx += int(np.round(distance_lcca_lsca / aorta_resolution, 0))
         lsa, _ = left_subclavian(aorta.coordinates[-idx], 1, rng)
         return [aorta, bct, rcca, rsa, lcca, lsa]
+
