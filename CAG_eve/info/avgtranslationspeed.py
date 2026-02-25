@@ -3,7 +3,6 @@ from .info import Info
 from ..intervention import Intervention
 
 
-# 定义信息类 AverageTranslationSpeed：统计平均平移速度
 class AverageTranslationSpeed(Info):
     def __init__(
         self, intervention: Intervention, name: str = "average translation speed"
