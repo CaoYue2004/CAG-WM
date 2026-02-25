@@ -23,4 +23,14 @@ More experimental videos are provided in the supplementary materials.
 2. Set environment variables as described [here](https://sofapython3.readthedocs.io/en/latest/content/Installation.html#using-python3). SOFA_ROOT is necessary for SOFA to run properly. 
 PYTHONPATH helps Python find the SOFA Python packages, this can be replaced by linking the SOFA Python packages (normally: $SOFA_ROOT/plugins/SofaPython3/lib/python3/site-packages) to the site-packages of the sofa instance your are using (Sofa, SofaRuntime, SofaTypes, splib) using ```ln -s <source> <target>```
 ### Training Environment
-
+```sh
+pip install -r requirements.txt
+```
+### Train
+```sh
+python train_cag.py --config-name CAG_config
+```
+### Evaluate
+```sh
+python evaluate.py --config-name CAG_config
+```
