@@ -5,15 +5,6 @@ from typing import Dict, Optional
 from .confighandler import ConfigHandler
 
 
-# ---------------------------------------------------------------------
-# EveObject
-# 所有“可配置 / 可序列化”的核心基类
-# 提供：
-# - 统一 repr
-# - 保存配置
-# - 从配置文件 / dict 重建对象
-# - 支持依赖图 & 对象替换（exchange）
-# ---------------------------------------------------------------------
 class EveObject(ABC):
     def __repr__(self):
         return f"{self.__module__}.{self.__class__.__name__}"
