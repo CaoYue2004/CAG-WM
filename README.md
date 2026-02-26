@@ -17,6 +17,9 @@ More experimental videos are provided in the supplementary materials.
 ![pre_2](https://github.com/user-attachments/assets/484dbc60-72c8-443d-92fc-58bebeaa9846)
 ![pre_1](https://github.com/user-attachments/assets/fd6e2c4f-4277-439f-93f1-6b91ced3daa8)
 
+## Data
+Our data is located in ./VESSEL_MODEL/, providing 12 cases, each including a 3D model and centerline.
+
 ## Getting Start
 ### SOFA Binaries
 1. Get the [SOFA binaries <= v23.06](https://www.sofa-framework.org/download/)  and install dependencies. Unfortunately in v23.12 the BeamAdapter interface changed and adaption is still pending. 
