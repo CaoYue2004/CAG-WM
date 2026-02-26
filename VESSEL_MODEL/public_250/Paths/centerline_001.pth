@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<format version="1.0" />
+<path id="301" method="0" calculation_number="150" spacing="0">
+  <timestep id="0">
+    <pos x="207.993774" y="272.386169" z="-109.291351" />
+    <pos x="208.599518" y="272.386169" z="-108.291351" />
+    <pos x="209.266449" y="272.386169" z="-107.291351" />
+    <pos x="209.993774" y="272.386169" z="-106.291351" />
+  </timestep>
+</path>
